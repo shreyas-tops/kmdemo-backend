@@ -1,3 +1,6 @@
+## For running dev::
+- npx prisma migrate deploy && node server.js
+
 ## What is Node.js?
 Node.js is a JavaScript runtime that allows us to run JavaScript outside the browser and build backend servers.
 
@@ -235,4 +238,28 @@ Default port for PostgreSQL.
 ## What is JWT_SECRET?
 Secret key used to sign authentication tokens.
 
+## Why Store Sequence Separately?
+Because:  Avoid string parsing
+          Faster queries
+          Clean increment logic
 
+## What is padStart?
+String(1).padStart(3, "0")
+Output:
+001
+Used to maintain fixed length numbers.
+
+## What is prisma migrate reset?
+Drops and recreates database. Used only in development.
+
+## What Is Idempotent Validation?
+Checking same condition every time to ensure consistency.
+
+## Why Return Token During Signup?
+So user can immediately authenticate without separate login call.
+
+## Why Track OTP Attempts?
+To prevent brute-force attacks.
+
+## Why Mark OTP as Used?
+To prevent reuse.

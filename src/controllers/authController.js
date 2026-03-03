@@ -110,7 +110,12 @@ exports.signup = async (req, res) => {
       },
     });
 
-    await sendOtpEmail(email, otp, "signup");
+    try {
+      await sendOtpEmail(email, otp, "signup");
+    } catch (emailErr) {
+      console.error("Signup OTP email failed:", emailErr.message);
+      // Don't fail registration; user is already created
+    }
 
     // Generate JWT token
     const token = jwt.sign(

@@ -1,12 +1,6 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 exports.sendOtpEmail = async (toEmail, otp, type = "signup") => {
   let subject = "";
@@ -16,11 +10,13 @@ exports.sendOtpEmail = async (toEmail, otp, type = "signup") => {
   if (type === "signup") {
     subject = "Verify Your Account - Catering App";
     heading = "Verify Your Email Address";
-    subheading = "Thanks for signing up! Use the OTP below to verify your account.";
+    subheading =
+      "Thanks for signing up! Use the OTP below to verify your account.";
   } else if (type === "forgot") {
     subject = "Reset Your Password - Catering App";
     heading = "Password Reset Request";
-    subheading = "We received a request to reset your password. Use the OTP below to proceed.";
+    subheading =
+      "We received a request to reset your password. Use the OTP below to proceed.";
   }
 
   const htmlTemplate = `
@@ -94,10 +90,19 @@ exports.sendOtpEmail = async (toEmail, otp, type = "signup") => {
   </html>
   `;
 
-  await transporter.sendMail({
-    from: `"Catering App" <${process.env.EMAIL_USER}>`,
+  const from = process.env.EMAIL_FROM || "Catering App <onboarding@resend.dev>";
+
+  const { data, error } = await resend.emails.send({
+    from,
     to: toEmail,
     subject,
     html: htmlTemplate,
   });
+
+  if (error) {
+    console.error("Resend error:", error);
+    throw new Error(error.message || "Failed to send email");
+  }
+
+  return data;
 };
