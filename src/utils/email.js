@@ -1,6 +1,17 @@
-const { Resend } = require("resend");
+const dns = require("dns");
+const nodemailer = require("nodemailer");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+dns.setDefaultResultOrder("ipv4first");
+
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 exports.sendOtpEmail = async (toEmail, otp, type = "signup") => {
   let subject = "";
@@ -90,19 +101,10 @@ exports.sendOtpEmail = async (toEmail, otp, type = "signup") => {
   </html>
   `;
 
-  const from = process.env.EMAIL_FROM || "Catering App <onboarding@resend.dev>";
-
-  const { data, error } = await resend.emails.send({
-    from,
+  await transporter.sendMail({
+    from: `"Catering App" <${process.env.EMAIL_USER}>`,
     to: toEmail,
     subject,
     html: htmlTemplate,
   });
-
-  if (error) {
-    console.error("Resend error:", error);
-    throw new Error(error.message || "Failed to send email");
-  }
-
-  return data;
 };
