@@ -65,16 +65,45 @@ function renderSupplyPdfBuffer(payload) {
       ? String(payload.companyName).slice(0, 200)
       : "";
 
+    /**
+     * Catering/business header lines shown under the company name — same fixed
+     * order and hide-if-empty rules as every client-side PDF
+     * (`buildPdfCompanyMetaLines` in the app). Empty fields are dropped so no
+     * blank "GST:" line is printed.
+     */
+    const clip = (v) => String(v == null ? "" : v).trim().slice(0, 200);
+    const companyMetaLines = [];
+    const addMeta = (value, prefix) => {
+      const v = clip(value);
+      if (v) companyMetaLines.push(prefix ? `${prefix} ${v}` : v);
+    };
+    addMeta(payload.companyAddress);
+    addMeta(payload.companyOwnerName, "Owner:");
+    addMeta(payload.companyPhone, "Phone:");
+    addMeta(payload.companyEmail, "Email:");
+    addMeta(payload.companyGst, "GST:");
+
     const pageInnerW = doc.page.width - PAGE_MARGIN * 2;
     const rightBlockW = pageInnerW * 0.62;
     const xRight = PAGE_MARGIN + pageInnerW - rightBlockW;
 
+    let leftBottom = PAGE_MARGIN;
     if (companyName) {
       doc.fontSize(11).fillColor("#0f172a");
       doc.text(companyName, PAGE_MARGIN, PAGE_MARGIN, {
         width: pageInnerW * 0.55,
         lineBreak: true,
       });
+      leftBottom = doc.y;
+      if (companyMetaLines.length) {
+        doc.fontSize(9).fillColor("#64748b");
+        doc.text(companyMetaLines.join("\n"), PAGE_MARGIN, doc.y + 2, {
+          width: pageInnerW * 0.55,
+          lineBreak: true,
+        });
+        doc.fillColor("#0f172a");
+        leftBottom = doc.y;
+      }
     }
 
     doc.fontSize(18).fillColor("#0f172a");
@@ -96,7 +125,7 @@ function renderSupplyPdfBuffer(payload) {
       doc.fillColor("#0f172a");
     }
 
-    let yy = Math.max(doc.y + 20, 124);
+    let yy = Math.max(doc.y + 20, leftBottom + 20, 124);
     const bottomLimit = doc.page.height - PAGE_MARGIN;
 
     const xQty = PAGE_MARGIN + COL_ITEM_W + 8;

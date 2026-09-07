@@ -184,7 +184,19 @@ function serializeQuotationEvent(ev) {
 }
 
 function serializeQuotation(q) {
-  const serializedEvents = (q.events || []).map(serializeQuotationEvent);
+  // Client address is the live default an event inherits when it has no
+  // `eventLocation` of its own — mirrors Booking's `customerAddress`.
+  const clientAddress = q.clientAddress ?? null;
+  const serializedEvents = (q.events || []).map((ev) => {
+    const row = serializeQuotationEvent(ev);
+    return {
+      ...row,
+      effective_event_location:
+        typeof row.event_location === "string" && row.event_location.trim()
+          ? row.event_location
+          : clientAddress,
+    };
+  });
   const first = serializedEvents[0];
 
   const extraServiceLines = (q.extraServiceLines || []).map(serializeQuotationExtraServiceLine);
@@ -773,10 +785,13 @@ async function convertQuotationToBooking(req, res) {
           customerName: existing.clientName,
           customerPhone: existing.clientPhone,
           customerEmail: existing.clientEmail ?? null,
+          // Client address becomes the booking's customer address; events with
+          // no address of their own keep inheriting it (see below).
+          customerAddress: existing.clientAddress ?? null,
           eventAt: firstEvent?.eventAt ?? existing.eventDate,
           eventRangeStart,
           eventRangeEnd,
-          eventLocation: firstEvent?.eventLocation ?? existing.clientAddress ?? null,
+          eventLocation: null,
           functionType: firstEvent?.functionType ?? existing.functionType,
           guestCount: firstEvent?.guestCount ?? existing.guestCount,
           discountAmount: existing.discountAmount,
@@ -805,7 +820,9 @@ async function convertQuotationToBooking(req, res) {
           data: {
             bookingId: booking.id,
             eventAt: ev.eventAt,
-            eventLocation: ev.eventLocation ?? existing.clientAddress ?? null,
+            // Keep the event's own address; blank stays blank so it inherits
+            // the booking's customerAddress (copied from clientAddress above).
+            eventLocation: ev.eventLocation ?? null,
             functionType: ev.functionType ?? null,
             jamanvarType: ev.jamanvarType,
             guestCount: ev.guestCount,

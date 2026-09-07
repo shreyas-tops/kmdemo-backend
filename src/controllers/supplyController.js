@@ -2237,7 +2237,9 @@ async function getUtensilInventoryDetail(req, res) {
 
 /**
  * POST /v1/generateSupplyListPdf
- * Body: { document_label, heading, subtitle?, company_name?, table_labels: { item, qty, unit }, groups: [{ title, lines: [{ name, quantity, unit }] }] }
+ * Body: { document_label, heading, subtitle?, company_name?, company_address?,
+ *   company_owner_name?, company_phone?, company_email?, company_gst?,
+ *   table_labels: { item, qty, unit }, groups: [{ title, lines: [{ name, quantity, unit }] }] }
  * Returns: application/pdf
  */
 async function generateSupplyListPdf(req, res) {
@@ -2257,6 +2259,11 @@ async function generateSupplyListPdf(req, res) {
       heading: body.heading,
       subtitle: body.subtitle,
       companyName: body.company_name,
+      companyAddress: body.company_address,
+      companyOwnerName: body.company_owner_name,
+      companyPhone: body.company_phone,
+      companyEmail: body.company_email,
+      companyGst: body.company_gst,
       tableLabels: body.table_labels,
       groups: body.groups,
     });

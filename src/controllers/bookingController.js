@@ -161,6 +161,7 @@ const CONFIRMED_LIMITED_PATCH_TOP = new Set([
   "customer_name",
   "customer_phone",
   "customer_email",
+  "customer_address",
   "event_at",
   "event_location",
   "function_type",
@@ -219,6 +220,7 @@ function isConfirmedLimitedPatch(body) {
     body.customer_name !== undefined ||
     body.customer_phone !== undefined ||
     body.customer_email !== undefined ||
+    body.customer_address !== undefined ||
     body.event_at !== undefined ||
     body.event_location !== undefined ||
     body.function_type !== undefined ||
@@ -417,7 +419,22 @@ function serializeBooking(b, { includePayments = true } = {}) {
         }))
       : undefined;
 
-  let serializedEvents = (b.events || []).map(serializeBookingEvent);
+  // Customer address is the live default an event inherits when it has no
+  // `eventLocation` of its own (legacy `b.eventLocation` kept as a last resort
+  // for bookings created before `customerAddress` existed and not yet backfilled).
+  const customerAddress = b.customerAddress ?? b.eventLocation ?? null;
+  const resolveEventLoc = (own) =>
+    typeof own === "string" && own.trim() ? own : customerAddress;
+
+  let serializedEvents = (b.events || []).map((ev) => {
+    const row = serializeBookingEvent(ev);
+    return {
+      ...row,
+      // Event's own address stays as-is (null/empty = "inherit"); the resolved
+      // value clients should actually display is `effective_event_location`.
+      effective_event_location: resolveEventLoc(row.event_location),
+    };
+  });
   const hasEvents = serializedEvents.length > 0;
   const bookingAtIso = b.eventAt?.toISOString?.() ?? b.eventAt ?? null;
 
@@ -426,7 +443,10 @@ function serializeBooking(b, { includePayments = true } = {}) {
     serializedEvents = [
       {
         ...first,
-        event_location: first.event_location ?? b.eventLocation ?? null,
+        // Older app builds read `events[0].event_location` directly, so keep it
+        // populated with the inherited value for them; newer builds read
+        // `event_location` (raw) + `effective_event_location` instead.
+        event_location: resolveEventLoc(first.event_location),
         guest_count: first.guest_count ?? b.guestCount ?? null,
         event_at: first.event_at ?? bookingAtIso,
       },
@@ -436,7 +456,8 @@ function serializeBooking(b, { includePayments = true } = {}) {
 
   const firstEvent = hasEvents ? serializedEvents[0] : null;
   const rootAt = firstEvent?.event_at ?? bookingAtIso;
-  const rootLoc = firstEvent?.event_location ?? b.eventLocation ?? null;
+  const rootLoc =
+    firstEvent?.effective_event_location ?? customerAddress ?? null;
   const rootGuests = firstEvent?.guest_count ?? b.guestCount ?? null;
   const rootFn = b.functionType ?? null;
 
@@ -462,6 +483,7 @@ function serializeBooking(b, { includePayments = true } = {}) {
     customer_name: b.customerName,
     customer_phone: b.customerPhone,
     customer_email: b.customerEmail,
+    customer_address: b.customerAddress ?? null,
     event_range_start: b.eventRangeStart?.toISOString?.() ?? b.eventRangeStart,
     event_range_end: b.eventRangeEnd?.toISOString?.() ?? b.eventRangeEnd,
     event_at: rootAt,
@@ -633,6 +655,9 @@ async function createBooking(req, res) {
         customerName: body.customer_name ?? null,
         customerPhone: body.customer_phone ?? null,
         customerEmail: body.customer_email ?? null,
+        // Newer clients send `customer_address`; older ones only send
+        // `event_location` from the same "customer info" field — accept either.
+        customerAddress: body.customer_address ?? body.event_location ?? null,
         eventRangeStart: body.event_range_start
           ? new Date(body.event_range_start)
           : null,
@@ -786,7 +811,8 @@ async function patchBooking(req, res) {
       } else if (
         body.customer_name !== undefined ||
         body.customer_phone !== undefined ||
-        body.customer_email !== undefined
+        body.customer_email !== undefined ||
+        body.customer_address !== undefined
       ) {
         return errorResponse(
           res,
@@ -1099,15 +1125,6 @@ async function patchBooking(req, res) {
       });
     }
 
-    if (body.event_location !== undefined) {
-      const loc =
-        body.event_location != null ? String(body.event_location).trim() : "";
-      await prisma.bookingEvent.updateMany({
-        where: { bookingId },
-        data: { eventLocation: loc || null },
-      });
-    }
-
     const guests =
       body.guest_count != null ? parseInt(body.guest_count, 10) : existing.guestCount ?? 0;
     const discount = body.discount_amount != null ? num(body.discount_amount) : num(existing.discountAmount);
@@ -1172,6 +1189,10 @@ async function patchBooking(req, res) {
       customerName: body.customer_name !== undefined ? body.customer_name : existing.customerName,
       customerPhone: body.customer_phone !== undefined ? body.customer_phone : existing.customerPhone,
       customerEmail: body.customer_email !== undefined ? body.customer_email : existing.customerEmail,
+      customerAddress:
+        body.customer_address !== undefined
+          ? body.customer_address
+          : existing.customerAddress,
       eventRangeStart:
         body.event_range_start !== undefined
           ? (body.event_range_start ? new Date(body.event_range_start) : null)
@@ -1704,6 +1725,7 @@ async function searchBookingCustomers(req, res) {
         customerName: true,
         customerPhone: true,
         customerEmail: true,
+        customerAddress: true,
         eventLocation: true,
         updatedAt: true,
       },
@@ -1717,7 +1739,7 @@ async function searchBookingCustomers(req, res) {
       const name = String(row.customerName ?? "").trim();
       const phone = String(row.customerPhone ?? "").trim();
       const email = String(row.customerEmail ?? "").trim();
-      const location = String(row.eventLocation ?? "").trim();
+      const address = String(row.customerAddress ?? row.eventLocation ?? "").trim();
       if (!name && !phone) continue;
       const key = phone
         ? `p:${phone}`
@@ -1728,7 +1750,9 @@ async function searchBookingCustomers(req, res) {
         customer_name: name || null,
         customer_phone: phone || null,
         customer_email: email || null,
-        event_location: location || null,
+        customer_address: address || null,
+        // Legacy alias kept so older app builds still prefill something.
+        event_location: address || null,
       });
       if (customers.length >= take) break;
     }

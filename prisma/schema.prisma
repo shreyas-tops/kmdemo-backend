@@ -400,10 +400,15 @@ model Booking {
   customerName    String?
   customerPhone   String?
   customerEmail   String?
+  /// Customer's own address (billing / contact). Independent of any event venue.
+  /// An event with no `eventLocation` of its own inherits this at read time.
+  customerAddress String?
   eventRangeStart DateTime?
   eventRangeEnd   DateTime?
 
-  eventAt       DateTime?
+  eventAt DateTime?
+  /// @deprecated Legacy booking-level default venue. Kept for back-compat only —
+  /// backfilled into `customerAddress`; new writes go there instead.
   eventLocation String?
   functionType  String?
   guestCount    Int?

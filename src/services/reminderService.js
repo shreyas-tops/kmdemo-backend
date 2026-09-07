@@ -93,7 +93,7 @@ function buildNotificationContent(event, reminderType, lang) {
     eventType,
     forSuffix,
     datePhrase,
-    venue:  event.eventLocation,
+    venue:  event.eventLocation || event.booking.customerAddress || null,
     guests: event.guestCount,
   });
 }
@@ -130,8 +130,9 @@ async function processReminderType(reminderType) {
         guestCount:    true,
         booking: {
           select: {
-            id:           true,
-            customerName: true,
+            id:              true,
+            customerName:    true,
+            customerAddress: true,
             business: {
               select: {
                 users: {
@@ -265,8 +266,9 @@ async function sendReminderForEvent(bookingEventId, reminderType = "24_HOUR") {
         guestCount:    true,
         booking: {
           select: {
-            id:           true,
-            customerName: true,
+            id:              true,
+            customerName:    true,
+            customerAddress: true,
             business: {
               select: {
                 users: {
